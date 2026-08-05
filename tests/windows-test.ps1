@@ -152,6 +152,10 @@ Assert-That ((Get-Process -Name 'ptp','ptp-original' -ErrorAction SilentlyContin
             "Stop-PtpProcesses stops BOTH the wrapper and the child"
 
 # --- result ------------------------------------------------------------------
+# Exit explicitly: the implicit exit code of a pwsh -command run depends on $?
+# and $LASTEXITCODE of whatever ran last (the stand-in ptp deliberately exits 7),
+# which would make a fully passing run look like a failure.
 Write-Host ""
 if ($script:fails -gt 0) { Write-Host "$($script:fails) test(s) FAILED" -ForegroundColor Red; exit 1 }
 Write-Host "all tests passed" -ForegroundColor Green
+exit 0
