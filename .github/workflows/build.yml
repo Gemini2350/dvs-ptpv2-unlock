@@ -52,7 +52,11 @@ jobs:
 
       - name: Build dvs-ptpv2-unlock.exe
         shell: cmd
-        run: gcc -DWIN32 -O2 -o dvs-ptpv2-unlock.exe dvs-ptpv2-unlock.c
+        run: gcc -DWIN32 -O2 -Wall -o dvs-ptpv2-unlock.exe dvs-ptpv2-unlock.c
+
+      - name: Run Windows behaviour tests
+        shell: pwsh
+        run: ./tests/windows-test.ps1
 
       - name: Package a ready-to-use bundle
         shell: pwsh

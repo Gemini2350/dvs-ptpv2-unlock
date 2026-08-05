@@ -7,6 +7,7 @@
 
 #ifdef WIN32
 #include <process.h>
+#include <stdint.h>
 #endif
 
 
@@ -33,9 +34,34 @@
 #endif
 
 #ifdef WIN32
-const char DvsPath[] = "C:\\Program Files\\Audinate\\Dante Virtual Soundcard\\ptp-original.exe";
-const char DvsPathArg[] = "\"C:\\Program Files\\Audinate\\Dante Virtual Soundcard\\ptp-original.exe\"";
-const char ConfPath[] = "C:\\Program Files\\Audinate\\Dante Virtual Soundcard\\dvs-ptpv2-unlock.conf";
+// DVS may be installed under either Program Files location depending on the
+// installer/architecture, so the paths are resolved at startup: whichever
+// directory actually holds ptp-original.exe wins (falling back to the first).
+#define PATH_MAX_LEN 512
+static const char *DvsDirCandidates[] = {
+	"C:\\Program Files\\Audinate\\Dante Virtual Soundcard",
+	"C:\\Program Files (x86)\\Audinate\\Dante Virtual Soundcard",
+};
+static char DvsPath[PATH_MAX_LEN];
+static char DvsPathArg[PATH_MAX_LEN + 2];
+static char ConfPath[PATH_MAX_LEN];
+
+static void resolve_paths(void)
+{
+	const size_t n = sizeof(DvsDirCandidates) / sizeof(DvsDirCandidates[0]);
+	size_t i, chosen = 0;
+	char candidate[PATH_MAX_LEN];
+
+	for (i = 0; i < n; i++) {
+		FILE *f;
+		snprintf(candidate, sizeof candidate, "%s\\ptp-original.exe", DvsDirCandidates[i]);
+		f = fopen(candidate, "rb");
+		if (f) { fclose(f); chosen = i; break; }
+	}
+	snprintf(DvsPath, sizeof DvsPath, "%s\\ptp-original.exe", DvsDirCandidates[chosen]);
+	snprintf(DvsPathArg, sizeof DvsPathArg, "\"%s\"", DvsPath);
+	snprintf(ConfPath, sizeof ConfPath, "%s\\dvs-ptpv2-unlock.conf", DvsDirCandidates[chosen]);
+}
 #else
 const char DvsPath[] = "/Library/Application Support/Audinate/DanteVirtualSoundcard/ptp-original";
 #define DvsPathArg DvsPath
@@ -99,6 +125,11 @@ int main(int argc, char *argv[], char *envp[])
 
 	int allow_leader = DEFAULT_ALLOW_LEADER;
 	int enable_ptpv2 = DEFAULT_ENABLE_PTPV2;
+
+#ifdef WIN32
+	resolve_paths();	// pick the DVS directory that exists before reading the config
+#endif
+
 	load_config(&allow_leader, &enable_ptpv2);
 
 	printf("<3 DVS PTPv2 Unlock <3  (leader=%d ptpv2=%d)\n", allow_leader, enable_ptpv2);
@@ -108,6 +139,7 @@ int main(int argc, char *argv[], char *envp[])
 
 	// store m2 (ptpv2 interface) as used for ptpv1 (-m1=)
 	char m2[256] = "-m2=";
+	int have_m1 = 0;
 
 	// alloc new argument list (last pointer must always be NULL)
 	args = calloc( argsc, sizeof(char*) );
@@ -120,8 +152,10 @@ int main(int argc, char *argv[], char *envp[])
 		if (allow_leader && strcmp(argv[i], "-s") == 0)
 			continue;
 
-		if (enable_ptpv2 && strncmp(argv[i], "-m1=", 4) == 0)
-			strcpy(&m2[4], &argv[i][4]);
+		if (enable_ptpv2 && strncmp(argv[i], "-m1=", 4) == 0) {
+			strncpy(&m2[4], &argv[i][4], sizeof(m2) - 5);
+			have_m1 = 1;
+		}
 
 #ifdef WIN32
 	// the log-file and conf-file paths will be padded with "
@@ -146,19 +180,32 @@ int main(int argc, char *argv[], char *envp[])
 
 	if (enable_ptpv2) {
 		args[argsc++] = "-y2=-2";
-		args[argsc++] = m2; // "-m2="
+		// Only pass -m2= when an interface was actually seen; an empty -m2=
+		// makes the real ptp reject the argument list.
+		if (have_m1)
+			args[argsc++] = m2;
 	}
 
 	// call actual ptp service
 #ifdef WIN32
-	spawnv(_P_WAIT, DvsPath, args);
+	// Unlike execve, _P_WAIT does NOT replace this process: it runs the real ptp
+	// as a child and returns its exit status when it finishes. So a normal
+	// return is the SUCCESS path -- only -1 means the child failed to start.
+	// Returning the child's status keeps DVS's process supervision meaningful.
+	{
+		intptr_t rc = spawnv(_P_WAIT, DvsPath, args);
+		if (rc != -1) {
+			free( args );
+			return (int)rc;
+		}
+	}
 #else
 	execve(args[0], args, envp);
 #endif
 
-	// should never reach here -> error case
+	// only reached when the real ptp service could not be started
 
-    printf("Error %d ", errno);
+    printf("Error %d starting '%s': ", errno, DvsPath);
     switch(errno){
     	case EPERM: 	printf("Operation not permitted"); break;
     	case ENOENT: 	printf("No such file or directory"); break;
@@ -170,7 +217,6 @@ int main(int argc, char *argv[], char *envp[])
 
 	free( args );
 
-
-	return 0;
+	return 1;	// starting the real ptp service failed
 
 }
