@@ -5,6 +5,16 @@ with a double-click, on macOS and Windows.
 
 [![build](../../actions/workflows/build.yml/badge.svg)](../../actions/workflows/build.yml)
 
+> **Disclaimer — community project, not supported by Audinate.**
+> This is an independent, unofficial community effort. It is **not affiliated
+> with, endorsed by, or supported by Audinate**, and it uses undocumented
+> options of the Dante Virtual Soundcard. Do not ask Audinate support for help
+> with it. Use at your own risk: it replaces a file inside the DVS installation
+> and may stop working — or break DVS — with any DVS update. It may also affect
+> your warranty or support entitlement. Deactivate it and restore the original
+> `ptp` before contacting Audinate about any DVS issue. Dante and Dante Virtual
+> Soundcard are trademarks of Audinate Pty Ltd.
+
 
 ## What it does
 
