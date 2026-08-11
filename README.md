@@ -1,38 +1,16 @@
-Enables PTPv2 on Dante Virtual Soundcard
+# DVS PTPv2 Unlock
 
+Unlocks PTPv2 and leader (grandmaster) mode on the Dante Virtual Soundcard —
+with a double-click, on macOS and Windows.
 
-                              /[-])//  ___
-                         __ --\ `_/~--|  / \
-                       /_-/~~--~~ /~~~\\_\ /\
-                       |  |___|===|_-- | \ \ \
-     _/~~~~~~~~|~~\,   ---|---\___/----|  \/\-\
-     ~\________|__/   / // \__ |  ||  / | |   | |
-              ,~-|~~~~~\--, | \|--|/~|||  |   | |
-              [3-|____---~~ _--'==;/ _,   |   |_|
-                          /   /\__|_/  \  \__/--/
-                         /---/_\  -___/ |  /,--|
-                         /  /\/~--|   | |  \///
-                        /  / |-__ \    |/
-                       |--/ /      |-- | \
-                      \^~~\\/\      \   \/- _
-                       \    |  \     |~~\~~| \
-                        \    \  \     \   \  | \
-                          \    \ |     \   \    \
-                           |~~|\/\|     \   \   |
-                          |   |/         \_--_- |\
-                          |  /            /   |/\/
-                           ~~             /  /
-                                         |__/
-
-
-               ==== DVS PTPv2 Unlock =====
+[![build](../../actions/workflows/build.yml/badge.svg)](../../actions/workflows/build.yml)
 
 
 ## What it does
 
-DVS's `ptp` service can do more than the app normally enables. This wrapper
-takes the place of the `ptp` binary, then calls the real one with the **same
-arguments except for the options you turn on**:
+DVS's `ptp` service can do more than the app normally exposes. This tool puts a
+small wrapper in place of the `ptp` binary; the wrapper then calls the real one
+with the **same arguments except for the options you turn on**:
 
 - **PTPv2 support** — adds `-y2=-2` and mirrors the `-m1=` interface to `-m2=`.
 - **Leader mode** — drops the `-s` (slave-only) flag so DVS can become the PTP
@@ -42,34 +20,77 @@ Both options are read at **runtime** from a small config file
 (`dvs-ptpv2-unlock.conf`), so once installed you can change them at any time —
 **no editing source, no recompiling, no reinstalling.**
 
+The original `ptp` is kept as `ptp-original` and restored when you deactivate.
 
-## Easiest way (macOS): download and double-click
 
-1. Download the latest **`dvs-ptpv2-unlock-macos.zip`** from the
-   [Releases](../../releases) page and unzip it. It contains a **prebuilt
-   universal binary**, so you need **no compiler and no Terminal**.
-2. Double-click **`DVS PTPv2 Unlock.app`**. A small menu opens where you can:
-   - **Activate** / **Deactivate** the wrapper,
-   - **Edit options** (tick PTPv2 and/or leader mode),
-   - **Show status** — shows both the desired config and the **live effective
-     state** (whether PTPv2 / leader are actually active in the running PTP
-     service right now, read from the running process).
-3. Enter your password once when macOS asks. The app applies the change and
-   **restarts the PTP service for you** — no manual DVS restart needed.
+## macOS: download and double-click
 
-> First launch: because the app isn't from the App Store, macOS may block it.
-> Right-click **`DVS PTPv2 Unlock.app`** → **Open** → **Open**. You only do this once.
+1. Download **`dvs-ptpv2-unlock-macos.zip`** from the [Releases](../../releases)
+   page and unzip it. It contains a **prebuilt universal binary** (Apple Silicon
+   + Intel), so you need **no compiler and no Terminal**.
+2. Double-click **`DVS PTPv2 Unlock.app`** and pick from the menu:
+   - **Activate** / **Deactivate** the wrapper
+   - **Edit options** — tick PTPv2 and/or leader mode
+   - **Show status** — see below
+3. Enter your password once when macOS asks. The change is applied and the
+   **PTP service is restarted for you** — no manual DVS restart needed.
+
+> **First launch:** the app isn't from the App Store, so macOS blocks it once.
+> Right-click **`DVS PTPv2 Unlock.app`** → **Open** → **Open**. Only needed once.
+>
+> If macOS still refuses (quarantine flag on downloaded archives), clear it once:
+> ```
+> xattr -dr com.apple.quarantine "DVS PTPv2 Unlock.app"
+> ```
 
 `dvs-ptpv2-unlock.command` is the same control panel without the app wrapper —
-double-click it directly if you prefer. If you run it from a plain `git clone`
-(no prebuilt binary), it compiles the binary for you, which needs the Command
-Line Tools (`xcode-select --install`).
+double-click it directly if you prefer. Run from a plain `git clone` (no prebuilt
+binary), it compiles for you, which needs the Command Line Tools
+(`xcode-select --install`).
 
 
-## Turning options on/off after install
+## Windows: download and double-click
 
-Use the control panel's **Edit options** (it applies the change and restarts the
-PTP service for you). Or edit `dvs-ptpv2-unlock.conf` inside the DVS folder by hand and
+1. Download **`dvs-ptpv2-unlock-windows.zip`** from the [Releases](../../releases)
+   page and unzip it. It contains a **prebuilt `dvs-ptpv2-unlock.exe`**, so you
+   need no compiler.
+2. Double-click **`DVS PTPv2 Unlock.cmd`**. Windows asks for administrator
+   rights (UAC) once, then the same menu opens: **Activate** / **Deactivate**,
+   **Edit options**, **Show status**.
+3. Each change is applied and the **Dante Virtual Soundcard service is stopped
+   and restarted for you** — required on Windows, because a running `.exe` is
+   locked and cannot be replaced while in use.
+
+Both `C:\Program Files\...` and `C:\Program Files (x86)\...` installations are
+detected automatically.
+
+> The `.cmd` only launches `dvs-ptpv2-unlock.ps1` with the execution policy
+> bypassed for that single run; nothing on your system is changed permanently.
+
+
+## Show status
+
+**Show status** reports two things, so you can tell intent from reality:
+
+- **Configured (desired)** — what `dvs-ptpv2-unlock.conf` asks for.
+- **Live (what DVS runs now)** — read from the **running** PTP process, so it
+  answers "is PTPv2 actually enabled right now?" even before anything is
+  installed.
+
+```
+Wrapper : installed
+Configured (desired):      PTPv2: enabled, Leader mode: disabled
+Live (what DVS runs now):  PTPv2 enabled, leader mode disabled
+```
+
+If those two disagree, DVS hasn't picked up the change yet — or a DVS update
+reverted the wrapper (see the note below).
+
+
+## Changing options later
+
+Use **Edit options** in the control panel (it applies the change and restarts the
+PTP service). Or edit `dvs-ptpv2-unlock.conf` in the DVS folder by hand and
 restart DVS yourself. Values accept `1/0`, `true/false`, `yes/no`, `on/off`:
 
 ```
@@ -77,8 +98,12 @@ leader = 1
 ptpv2  = 1
 ```
 
+> **After a DVS update:** the updater replaces `ptp` with Audinate's original and
+> silently reverts the wrapper. Open the control panel and activate again.
+> **Show status** tells you if this has happened.
 
-## Command-line install (Makefile)
+
+## Command-line install (macOS, Makefile)
 
     Targets:
 
@@ -93,68 +118,67 @@ ptpv2  = 1
 	install		installs the PTP wrapper (and default config)
 	uninstall	restores the original ptp
 
-Steps:
-
-1. Open **Terminal** (`Applications > Utilities`) and `cd` into this folder.
+1. Open **Terminal** and `cd` into this folder.
 2. `make build` — compiles `dvs-ptpv2-unlock`.
-3. `sudo make install` — backs up the original `ptp` to `ptp-original`, puts the
-   wrapper in its place, and installs a default `dvs-ptpv2-unlock.conf`.
-   The backup step is **skipped if `ptp-original` already exists**, so running
-   install twice can never overwrite the real original.
+3. `sudo make install` — backs up `ptp` to `ptp-original`, installs the wrapper
+   and a default `dvs-ptpv2-unlock.conf`. The backup step is **skipped if
+   `ptp-original` already exists**, so running install twice can never overwrite
+   the real original.
 4. Edit `dvs-ptpv2-unlock.conf` (see above) and restart DVS.
 5. `sudo make uninstall` — restores the original `ptp`.
-6. `make status` — check what's currently installed/configured.
-
-> **Note:** a DVS **update** replaces the `ptp` binary with Audinate's original,
-> silently reverting the wrapper. Re-run the control panel / `make install`
-> after updating DVS.
+6. `make status` — check what's installed and configured.
 
 
-## Windows: download and double-click
+## Building it yourself
 
-1. Download the latest **`dvs-ptpv2-unlock-windows.zip`** from the
-   [Releases](../../releases) page and unzip it. It contains a **prebuilt
-   `dvs-ptpv2-unlock.exe`**, so you need no compiler.
-2. Double-click **`DVS PTPv2 Unlock.cmd`**. Windows asks for administrator rights
-   (UAC) once, then a menu opens where you can **Activate** / **Deactivate** the
-   wrapper, **Edit options** (PTPv2 / leader), and **Show status** (desired
-   config plus the **live effective state** read from the running PTP process).
-3. Each change is applied and the **Dante Virtual Soundcard service is restarted
-   for you** — no manual restart needed.
+**macOS** — universal binary plus the launcher app:
 
-> The `.cmd` just launches `dvs-ptpv2-unlock.ps1` with the execution policy bypassed
-> for that one run; nothing is changed permanently on your system.
+```
+cc -arch arm64 -arch x86_64 -o dvs-ptpv2-unlock dvs-ptpv2-unlock.c && ./build-app.sh
+```
 
-### Manual Windows build (optional)
+`build-app.sh` bundles the control script, config, and binary *inside* the app
+and re-signs it (ad-hoc), which keeps it working under macOS App Translocation.
 
-If you'd rather build it yourself and have no compiler, the mingw installer
-works: https://github.com/Vuniverse0/mingwInstaller/releases/
+**Windows** — if you have no compiler, the
+[mingw installer](https://github.com/Vuniverse0/mingwInstaller/releases/) works:
 
-Compile (in the folder with `dvs-ptpv2-unlock.c`):
+```
+gcc -DWIN32 -O2 -o dvs-ptpv2-unlock.exe dvs-ptpv2-unlock.c
+```
 
-`gcc -DWIN32 -o dvs-ptpv2-unlock.exe dvs-ptpv2-unlock.c`
-
-Then, in `C:\Program Files\Audinate\Dante Virtual Soundcard`, rename `ptp.exe`
-to `ptp-original.exe`, put `dvs-ptpv2-unlock.exe` in its place as `ptp.exe`, and create a
-`dvs-ptpv2-unlock.conf` next to it with your `leader` / `ptpv2` settings.
+Every push is built for macOS and Windows in CI, and the Windows job runs an
+end-to-end test suite (`tests/windows-test.ps1`) that exercises the real binary
+and the control-panel functions against a temporary DVS folder.
 
 
 ## Manual installation (either OS)
 
-In the DVS application folder
-(macOS `/Library/Application Support/Audinate/DanteVirtualSoundcard`,
-Windows `C:\Program Files\Audinate\Dante Virtual Soundcard`): rename the original
-`ptp` to `ptp-original`, copy the compiled `dvs-ptpv2-unlock` in its place as `ptp`, and
-drop a `dvs-ptpv2-unlock.conf` alongside it.
+In the DVS application folder (macOS
+`/Library/Application Support/Audinate/DanteVirtualSoundcard`, Windows
+`C:\Program Files\Audinate\Dante Virtual Soundcard`): rename the original `ptp`
+to `ptp-original`, put the compiled `dvs-ptpv2-unlock` in its place as `ptp`, and
+drop a `dvs-ptpv2-unlock.conf` next to it.
+
+On Windows the files carry an `.exe` extension (`ptp.exe`, `ptp-original.exe`),
+and DVS must be stopped first — a running executable cannot be replaced.
 
 
 ## Compile-time defaults (optional)
 
-The config file is the normal way to set options. If you want a binary that
-behaves a certain way even **without** a config file, uncomment the defaults at
-the top of `dvs-ptpv2-unlock.c`:
+The config file is the normal way to set options. For a binary that behaves a
+certain way even **without** a config file, uncomment the defaults at the top of
+`dvs-ptpv2-unlock.c`:
 
 ```
 // #define DEFAULT_ALLOW_LEADER 1
 // #define DEFAULT_ENABLE_PTPV2 1
 ```
+
+
+## How it works
+
+The wrapper `exec`s (macOS) or spawns (Windows) the original `ptp` binary with
+the argument list it was given, minus `-s` when leader mode is on, plus
+`-y2=-2 -m2=<iface>` when PTPv2 is on. It adds no daemon, changes no system
+settings, and touches nothing outside the DVS application folder.
