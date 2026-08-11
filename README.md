@@ -78,6 +78,36 @@ detected automatically.
 > bypassed for that single run; nothing on your system is changed permanently.
 
 
+## What it looks like
+
+On **macOS** the app shows native dialogs — a menu titled
+*DVS PTPv2 Unlock (currently: …)* asking "What would you like to do?", with:
+
+```
+Activate wrapper
+Deactivate wrapper
+Edit options (PTPv2 / leader)
+Show status
+Quit
+```
+
+**Edit options** is a checkbox list ("Enable which features?") with
+*PTPv2 support* and *Allow DVS to become leader*, pre-ticked to your current
+settings.
+
+On **Windows** the same control panel runs in a console window:
+
+```
+===== DVS PTPv2 Unlock  (currently: not installed) =====
+  1) Activate wrapper
+  2) Deactivate wrapper
+  3) Edit options (PTPv2 / leader)
+  4) Show status
+  5) Quit
+Choose:
+```
+
+
 ## Show status
 
 **Show status** reports two things, so you can tell intent from reality:
