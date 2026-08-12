@@ -19,7 +19,10 @@ CONF="$DVSDIR/dvs-ptpv2-unlock.conf"
 # --- small helpers -------------------------------------------------------
 
 # Run an AppleScript snippet and return its output.
-osa() { osascript -e "$1"; }
+# stderr is dropped on purpose: cancelling a dialog makes AppleScript fail with
+# "User cancelled. (-128)", which is a normal outcome here, not something to
+# show the user. Callers decide what to do via the exit status.
+osa() { osascript -e "$1" 2>/dev/null; }
 
 # Show a plain informational dialog.
 info() {
@@ -31,7 +34,9 @@ conf_get() {
 	local key="$1"
 	if [ -f "$CONF" ]; then
 		local v
-		v=$(grep -iE "^[[:space:]]*$key[[:space:]]*=" "$CONF" | tail -1 | cut -d= -f2 | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+		# "|| v=" keeps a missing key harmless: with pipefail a non-matching
+		# grep would otherwise fail the assignment and abort under set -e.
+		v=$(grep -iE "^[[:space:]]*$key[[:space:]]*=" "$CONF" | tail -1 | cut -d= -f2 | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]') || v=""
 		case "$v" in 1|y|yes|true|on) echo 1 ;; *) echo 0 ;; esac
 	else
 		echo 0
@@ -79,7 +84,9 @@ run_admin() {
 	local tmp rc
 	tmp="$(mktemp -t dvs-ptpv2-unlock)" || return 1
 	printf '%s\n' "$1" > "$tmp"
-	osascript -e "do shell script \"/bin/bash '$tmp'\" with administrator privileges" >/dev/null
+	# stderr dropped: cancelling the password prompt is a -128 "User cancelled",
+	# reported to the caller through the exit status instead.
+	osascript -e "do shell script \"/bin/bash '$tmp'\" with administrator privileges" >/dev/null 2>&1
 	rc=$?
 	rm -f "$tmp"
 	return $rc
@@ -124,12 +131,12 @@ edit_options() {
 		with title \"DVS PTPv2 Unlock options\" \
 		buttons {\"Cancel\", \"Disable\", \"Enable\"} \
 		default button \"$( [ "$cur" = "1" ] && echo Disable || echo Enable )\")
-		return b") || return
+		return b") || return 0		# Cancel/Escape -> AppleScript -128, not an error
 
 	case "$answer" in
 		Enable)  new_ptpv2=1 ;;
 		Disable) new_ptpv2=0 ;;
-		*)       return ;;			# Cancel
+		*)       return 0 ;;			# Cancel
 	esac
 
 	# Write the config as root (it lives under /Library), restarting the service
@@ -155,7 +162,9 @@ $restart" || { info "Saving options was cancelled or failed."; return; }
 # whether or not the wrapper is installed (matches both ptp and ptp-original).
 live_status() {
 	local proc
-	proc=$(ps -axo command= 2>/dev/null | grep 'DanteVirtualSoundcard/ptp' | grep -v grep | head -1)
+	# "|| proc=" -- no running ptp means grep exits 1, which pipefail would turn
+	# into a failed assignment; not running is a normal state, reported below.
+	proc=$(ps -axo command= 2>/dev/null | grep 'DanteVirtualSoundcard/ptp' | grep -v grep | head -1) || proc=""
 	if [ -z "$proc" ]; then
 		echo "PTP service not running"
 		return
