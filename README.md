@@ -1,7 +1,7 @@
 # DVS PTPv2 Unlock
 
-Unlocks PTPv2 and leader (grandmaster) mode on the Dante Virtual Soundcard —
-with a double-click, on macOS and Windows.
+Unlocks PTPv2 support on the Dante Virtual Soundcard — with a double-click,
+on macOS and Windows.
 
 [![build](../../actions/workflows/build.yml/badge.svg)](../../actions/workflows/build.yml)
 
@@ -20,15 +20,14 @@ with a double-click, on macOS and Windows.
 
 DVS's `ptp` service can do more than the app normally exposes. This tool puts a
 small wrapper in place of the `ptp` binary; the wrapper then calls the real one
-with the **same arguments except for the options you turn on**:
+with the **same arguments plus the one option you turn on**:
 
 - **PTPv2 support** — adds `-y2=-2` and mirrors the `-m1=` interface to `-m2=`.
-- **Leader mode** — drops the `-s` (slave-only) flag so DVS can become the PTP
-  leader / grandmaster.
 
-Both options are read at **runtime** from a small config file
-(`dvs-ptpv2-unlock.conf`), so once installed you can change them at any time —
-**no editing source, no recompiling, no reinstalling.**
+Every other argument DVS passes is forwarded untouched. The option is read at
+**runtime** from a small config file (`dvs-ptpv2-unlock.conf`), so once installed
+you can change it at any time — **no editing source, no recompiling, no
+reinstalling.**
 
 The original `ptp` is kept as `ptp-original` and restored when you deactivate.
 
@@ -40,7 +39,7 @@ The original `ptp` is kept as `ptp-original` and restored when you deactivate.
    + Intel), so you need **no compiler and no Terminal**.
 2. Double-click **`DVS PTPv2 Unlock.app`** and pick from the menu:
    - **Activate** / **Deactivate** the wrapper
-   - **Edit options** — tick PTPv2 and/or leader mode
+   - **Edit options** — enable or disable PTPv2 support
    - **Show status** — see below
 3. Enter your password once when macOS asks. The change is applied and the
    **PTP service is restarted for you** — no manual DVS restart needed.
@@ -86,14 +85,13 @@ On **macOS** the app shows native dialogs — a menu titled
 ```
 Activate wrapper
 Deactivate wrapper
-Edit options (PTPv2 / leader)
+Edit options (PTPv2)
 Show status
 Quit
 ```
 
-**Edit options** is a checkbox list ("Enable which features?") with
-*PTPv2 support* and *Allow DVS to become leader*, pre-ticked to your current
-settings.
+**Edit options** shows the current setting ("PTPv2 support is currently
+disabled.") with **Enable** / **Disable** / **Cancel** buttons.
 
 On **Windows** the same control panel runs in a console window:
 
@@ -101,7 +99,7 @@ On **Windows** the same control panel runs in a console window:
 ===== DVS PTPv2 Unlock  (currently: not installed) =====
   1) Activate wrapper
   2) Deactivate wrapper
-  3) Edit options (PTPv2 / leader)
+  3) Edit options (PTPv2)
   4) Show status
   5) Quit
 Choose:
@@ -119,8 +117,8 @@ Choose:
 
 ```
 Wrapper : installed
-Configured (desired):      PTPv2: enabled, Leader mode: disabled
-Live (what DVS runs now):  PTPv2 enabled, leader mode disabled
+Configured (desired):      PTPv2: enabled
+Live (what DVS runs now):  PTPv2 enabled
 ```
 
 If those two disagree, DVS hasn't picked up the change yet — or a DVS update
@@ -131,11 +129,10 @@ reverted the wrapper (see the note below).
 
 Use **Edit options** in the control panel (it applies the change and restarts the
 PTP service). Or edit `dvs-ptpv2-unlock.conf` in the DVS folder by hand and
-restart DVS yourself. Values accept `1/0`, `true/false`, `yes/no`, `on/off`:
+restart DVS yourself. The value accepts `1/0`, `true/false`, `yes/no`, `on/off`:
 
 ```
-leader = 1
-ptpv2  = 1
+ptpv2 = 1
 ```
 
 > **After a DVS update:** the updater replaces `ptp` with Audinate's original and
@@ -206,12 +203,11 @@ and DVS must be stopped first — a running executable cannot be replaced.
 
 ## Compile-time defaults (optional)
 
-The config file is the normal way to set options. For a binary that behaves a
-certain way even **without** a config file, uncomment the defaults at the top of
+The config file is the normal way to set the option. For a binary that behaves a
+certain way even **without** a config file, uncomment the default at the top of
 `dvs-ptpv2-unlock.c`:
 
 ```
-// #define DEFAULT_ALLOW_LEADER 1
 // #define DEFAULT_ENABLE_PTPV2 1
 ```
 
@@ -219,6 +215,6 @@ certain way even **without** a config file, uncomment the defaults at the top of
 ## How it works
 
 The wrapper `exec`s (macOS) or spawns (Windows) the original `ptp` binary with
-the argument list it was given, minus `-s` when leader mode is on, plus
-`-y2=-2 -m2=<iface>` when PTPv2 is on. It adds no daemon, changes no system
-settings, and touches nothing outside the DVS application folder.
+the argument list it was given, plus `-y2=-2 -m2=<iface>` when PTPv2 is on. No
+argument is ever removed. It adds no daemon, changes no system settings, and
+touches nothing outside the DVS application folder.

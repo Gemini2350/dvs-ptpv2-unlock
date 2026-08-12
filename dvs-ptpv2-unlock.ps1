@@ -2,7 +2,7 @@
 #
 # Double-click "DVS PTPv2 Unlock.cmd" (which launches this script). It opens a
 # small menu to activate/deactivate the PTP wrapper and toggle its options
-# (PTPv2, leader mode). It elevates via UAC once, applies the change, and
+# (PTPv2). It elevates via UAC once, applies the change, and
 # restarts the Dante Virtual Soundcard so it takes effect.
 #
 # Parameters exist for testing: -DvsDir points at a different install folder and
@@ -46,12 +46,10 @@ function Get-ConfValue([string]$key) {
     return @('1', 'y', 'yes', 'true', 'on') -contains $val
 }
 
-function Set-Conf([bool]$leader, [bool]$ptpv2) {
-    $l = if ($leader) { 1 } else { 0 }
+function Set-Conf([bool]$ptpv2) {
     $p = if ($ptpv2)  { 1 } else { 0 }
     @(
         '# DVS PTPv2 Unlock configuration (written by dvs-ptpv2-unlock.ps1)'
-        "leader = $l"
         "ptpv2  = $p"
     ) | Set-Content -Path $Conf -Encoding ASCII
 }
@@ -147,20 +145,17 @@ function Invoke-Deactivate {
 }
 
 function Edit-Options {
-    $curLeader = Get-ConfValue 'leader'
-    $curPtpv2  = Get-ConfValue 'ptpv2'
+    $curPtpv2 = Get-ConfValue 'ptpv2'
     Write-Host ""
     $a = Read-Host "Enable PTPv2 support? (y/n) [$(if($curPtpv2){'y'}else{'n'})]"
-    $b = Read-Host "Allow DVS to become leader? (y/n) [$(if($curLeader){'y'}else{'n'})]"
-    $ptpv2  = if ($a -eq '') { $curPtpv2 }  else { $a -match '^(y|yes|1|on|true)$' }
-    $leader = if ($b -eq '') { $curLeader } else { $b -match '^(y|yes|1|on|true)$' }
-    Set-Conf -leader $leader -ptpv2 $ptpv2
+    $ptpv2 = if ($a -eq '') { $curPtpv2 } else { $a -match '^(y|yes|1|on|true)$' }
+    Set-Conf -ptpv2 $ptpv2
     if (Test-Installed) {
         $svc = Suspend-Dvs
         Resume-Dvs $svc
-        Write-Host "`nSaved (PTPv2 $(YesNo $ptpv2), leader mode $(YesNo $leader)) and DVS restarted." -ForegroundColor Green
+        Write-Host "`nSaved (PTPv2 $(YesNo $ptpv2)) and DVS restarted." -ForegroundColor Green
     } else {
-        Write-Host "`nSaved (PTPv2 $(YesNo $ptpv2), leader mode $(YesNo $leader)). They apply once you activate the wrapper." -ForegroundColor Green
+        Write-Host "`nSaved (PTPv2 $(YesNo $ptpv2)). It applies once you activate the wrapper." -ForegroundColor Green
     }
 }
 
@@ -177,8 +172,7 @@ function Get-LiveStatus {
     if (-not $proc) { $proc = $procs[0] }
     $cmd = " $($proc.CommandLine) "
     $p = if ($cmd -match '\s-y2')  { 'enabled' } else { 'disabled' }   # wrapper appends -y2=-2 for PTPv2
-    $l = if ($cmd -match '\s-s\s') { 'disabled' } else { 'enabled' }   # DVS passes -s for slave-only
-    return "PTPv2 $p, leader mode $l"
+    return "PTPv2 $p"
 }
 
 function YesNo([bool]$b) { if ($b) { 'enabled' } else { 'disabled' } }
@@ -187,7 +181,7 @@ function Show-Status {
     $state = if (Test-Installed) { 'installed' } else { 'not installed' }
     Write-Host ""
     Write-Host "Wrapper : $state"
-    Write-Host "Configured (desired):   PTPv2: $(YesNo (Get-ConfValue 'ptpv2')), Leader mode: $(YesNo (Get-ConfValue 'leader'))"
+    Write-Host "Configured (desired):   PTPv2: $(YesNo (Get-ConfValue 'ptpv2'))"
     Write-Host "Live (what DVS runs now):  $(Get-LiveStatus)"
     Write-Host "config file: $Conf"
 }
@@ -215,7 +209,7 @@ while (-not $quit) {
     Write-Host "===== DVS PTPv2 Unlock  (currently: $state) =====" -ForegroundColor Cyan
     Write-Host "  1) Activate wrapper"
     Write-Host "  2) Deactivate wrapper"
-    Write-Host "  3) Edit options (PTPv2 / leader)"
+    Write-Host "  3) Edit options (PTPv2)"
     Write-Host "  4) Show status"
     Write-Host "  5) Quit"
     try {

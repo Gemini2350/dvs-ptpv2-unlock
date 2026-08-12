@@ -12,23 +12,18 @@
 
 
 // ---------------------------------------------------------------------------
-// Options are read at RUNTIME from a small config file next to this binary
+// The option is read at RUNTIME from a small config file next to this binary
 // (see ConfPath below), so you never have to edit or recompile this file to
-// toggle a feature. The #defines here only set the DEFAULTS that apply when
-// the config file is missing or does not mention a given key.
+// toggle it. The #define here only sets the DEFAULT that applies when the
+// config file is missing or does not mention the key.
 //
-//   leader=1   allow DVS to become PTP leader   (drops the "-s" slave-only flag)
-//   ptpv2=1    enable PTPv2 support             (adds "-y2=-2" and mirrors -m1= to -m2=)
+//   ptpv2=1    enable PTPv2 support   (adds "-y2=-2" and mirrors -m1= to -m2=)
 //
-// Uncommenting a #define below only changes what happens WITHOUT a config file.
+// Uncommenting the #define below only changes what happens WITHOUT a config file.
 // ---------------------------------------------------------------------------
 
-// #define DEFAULT_ALLOW_LEADER 1	// default: allow DVS to become leader
 // #define DEFAULT_ENABLE_PTPV2 1	// default: enable PTPv2 support
 
-#ifndef DEFAULT_ALLOW_LEADER
-#define DEFAULT_ALLOW_LEADER 0
-#endif
 #ifndef DEFAULT_ENABLE_PTPV2
 #define DEFAULT_ENABLE_PTPV2 0
 #endif
@@ -81,10 +76,10 @@ static int parse_bool(const char *v)
 	return 0;
 }
 
-// Read the config file (if present) and update *leader / *ptpv2 in place.
-// Unknown keys and blank/comment (#) lines are ignored. Values may also be
-// overridden by the environment variables DVS_PTP_LEADER / DVS_PTP_PTPV2.
-static void load_config(int *leader, int *ptpv2)
+// Read the config file (if present) and update *ptpv2 in place.
+// Unknown keys and blank/comment (#) lines are ignored. The value may also be
+// overridden by the environment variable DVS_PTP_PTPV2.
+static void load_config(int *ptpv2)
 {
 	FILE *f = fopen(ConfPath, "r");
 	if (f) {
@@ -103,17 +98,13 @@ static void load_config(int *leader, int *ptpv2)
 			// trim trailing space on key
 			char *end = key + strlen(key);
 			while (end > key && isspace((unsigned char)end[-1])) *--end = '\0';
-			if (strcasecmp(key, "leader") == 0)
-				*leader = parse_bool(val);
-			else if (strcasecmp(key, "ptpv2") == 0)
+			if (strcasecmp(key, "ptpv2") == 0)
 				*ptpv2 = parse_bool(val);
 		}
 		fclose(f);
 	}
 
 	const char *env;
-	if ((env = getenv("DVS_PTP_LEADER")) != NULL)
-		*leader = parse_bool(env);
 	if ((env = getenv("DVS_PTP_PTPV2")) != NULL)
 		*ptpv2 = parse_bool(env);
 }
@@ -123,16 +114,15 @@ int main(int argc, char *argv[], char *envp[])
 	char ** args;
 	int i, argsc;
 
-	int allow_leader = DEFAULT_ALLOW_LEADER;
 	int enable_ptpv2 = DEFAULT_ENABLE_PTPV2;
 
 #ifdef WIN32
 	resolve_paths();	// pick the DVS directory that exists before reading the config
 #endif
 
-	load_config(&allow_leader, &enable_ptpv2);
+	load_config(&enable_ptpv2);
 
-	printf("<3 DVS PTPv2 Unlock <3  (leader=%d ptpv2=%d)\n", allow_leader, enable_ptpv2);
+	printf("<3 DVS PTPv2 Unlock <3  (ptpv2=%d)\n", enable_ptpv2);
 
 	// upper bound on argument count: original args + PTPv2 additions + NULL
 	argsc = argc + 3;
@@ -148,10 +138,6 @@ int main(int argc, char *argv[], char *envp[])
 	args[0] = (char*)DvsPathArg;
 
 	for (i = 1, argsc = 1; i < argc; i++) {
-		// skip -s (slave-only) option when leader mode is enabled
-		if (allow_leader && strcmp(argv[i], "-s") == 0)
-			continue;
-
 		if (enable_ptpv2 && strncmp(argv[i], "-m1=", 4) == 0) {
 			strncpy(&m2[4], &argv[i][4], sizeof(m2) - 5);
 			have_m1 = 1;

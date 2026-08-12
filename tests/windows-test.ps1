@@ -58,40 +58,39 @@ function Invoke-Wrapper([string[]]$wrapperArgs) {
     return @{ Out = $out; Code = $LASTEXITCODE }
 }
 
-Set-Content $conf @('leader = 1', 'ptpv2 = 1') -Encoding ASCII
+Set-Content $conf @('ptpv2 = 1') -Encoding ASCII
 $r = Invoke-Wrapper @('-s', '-m1=en0', '-lf=C:\x\log')
-Assert-That ($r.Out -notmatch '\s-s(\s|$)')  "leader=1 removes the -s (slave-only) flag"
+Assert-That ($r.Out -match '\s-s(\s|$)')     "-s (slave-only) is always passed through untouched"
 Assert-That ($r.Out -match '-y2=-2')         "ptpv2=1 appends -y2=-2"
 Assert-That ($r.Out -match '-m2=en0')        "ptpv2=1 mirrors -m1=en0 to -m2=en0"
 Assert-That ($r.Out -match '-m1=en0')        "original arguments are preserved"
 Assert-That ($r.Code -eq 7)                  "child exit code is propagated (got $($r.Code))"
 
-Set-Content $conf @('leader = 0', 'ptpv2 = 0') -Encoding ASCII
+Set-Content $conf @('ptpv2 = 0') -Encoding ASCII
 $r = Invoke-Wrapper @('-s', '-m1=en0')
-Assert-That ($r.Out -match '\s-s(\s|$)')     "leader=0 keeps -s"
+Assert-That ($r.Out -match '\s-s(\s|$)')     "ptpv2=0 still passes -s through"
 Assert-That ($r.Out -notmatch '-y2')         "ptpv2=0 does not add -y2"
 Assert-That ($r.Out -notmatch '-m2=')        "ptpv2=0 does not add -m2"
 
-Set-Content $conf @('leader = yes', 'ptpv2 = ON') -Encoding ASCII
+Set-Content $conf @('ptpv2 = ON') -Encoding ASCII
 $r = Invoke-Wrapper @('-s', '-m1=en0')
-Assert-That ($r.Out -notmatch '\s-s(\s|$)')  "config accepts 'yes'"
 Assert-That ($r.Out -match '-y2=-2')         "config accepts 'ON' (case-insensitive)"
 
-Set-Content $conf @('leader = 0', 'ptpv2 = 1') -Encoding ASCII
+Set-Content $conf @('ptpv2 = 1') -Encoding ASCII
 $r = Invoke-Wrapper @('-lf=C:\x\log')
 Assert-That ($r.Out -notmatch '-m2=')        "without -m1 no empty -m2 is passed"
 
 # Config missing entirely -> compiled defaults (both off), must still run.
 Remove-Item $conf -Force
 $r = Invoke-Wrapper @('-s', '-m1=en0')
-Assert-That ($r.Out -match '\s-s(\s|$)')     "missing config falls back to defaults (off)"
+Assert-That ($r.Out -notmatch '-y2')         "missing config falls back to the default (off)"
 Assert-That ($r.Code -eq 7)                  "still starts the real ptp without a config"
 
 # Fallback to the 32-bit install location.
 Remove-Item (Join-Path $dvs 'ptp-original.exe') -Force
 New-Item -ItemType Directory -Force -Path $dvs86 | Out-Null
 Copy-Item $fake (Join-Path $dvs86 'ptp-original.exe') -Force
-Set-Content (Join-Path $dvs86 'dvs-ptpv2-unlock.conf') @('leader = 1', 'ptpv2 = 1') -Encoding ASCII
+Set-Content (Join-Path $dvs86 'dvs-ptpv2-unlock.conf') @('ptpv2 = 1') -Encoding ASCII
 $r = Invoke-Wrapper @('-s', '-m1=en0')
 Assert-That ($r.Out -match '-y2=-2')         "falls back to 'Program Files (x86)' install"
 Assert-That ($r.Code -eq 7)                  "runs the real ptp from the (x86) location"
@@ -107,15 +106,14 @@ Set-Content (Join-Path $fakeDvs 'ptp.exe') 'ORIGINAL-PTP' -Encoding ASCII
 
 Assert-That (-not (Test-Installed)) "reports 'not installed' on a clean folder"
 
-Set-Conf -leader $true -ptpv2 $false
-Assert-That ((Get-ConfValue 'leader') -eq $true)  "config round-trip: leader on"
-Assert-That ((Get-ConfValue 'ptpv2')  -eq $false) "config round-trip: ptpv2 off"
+Set-Conf -ptpv2 $false
+Assert-That ((Get-ConfValue 'ptpv2') -eq $false) "config round-trip: ptpv2 off"
+Set-Conf -ptpv2 $true
+Assert-That ((Get-ConfValue 'ptpv2') -eq $true)  "config round-trip: ptpv2 on"
 
-Set-Content $Conf @('leader = yes', 'ptpv2 = ON') -Encoding ASCII
-Assert-That (Get-ConfValue 'leader') "reads 'yes'"
+Set-Content $Conf @('ptpv2 = ON') -Encoding ASCII
 Assert-That (Get-ConfValue 'ptpv2')  "reads 'ON'"
-Set-Content $Conf @('leader = off', 'ptpv2 = false') -Encoding ASCII
-Assert-That (-not (Get-ConfValue 'leader')) "reads 'off'"
+Set-Content $Conf @('ptpv2 = false') -Encoding ASCII
 Assert-That (-not (Get-ConfValue 'ptpv2'))  "reads 'false'"
 
 Invoke-Activate
@@ -145,7 +143,6 @@ Start-Sleep -Seconds 3
 $live = Get-LiveStatus
 Write-Host "  live status = '$live'"
 Assert-That ($live -match 'PTPv2 enabled')      "live status reads the child (would be 'disabled' if it read the parent)"
-Assert-That ($live -match 'leader mode enabled') "live status reports leader from the child's arguments"
 Stop-PtpProcesses
 Start-Sleep -Seconds 1
 Assert-That ((Get-Process -Name 'ptp','ptp-original' -ErrorAction SilentlyContinue).Count -eq 0) `

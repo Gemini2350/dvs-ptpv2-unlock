@@ -4,7 +4,7 @@
 #
 # Double-click this file in Finder. It opens a small menu where you can
 # activate/deactivate the PTP wrapper and toggle its options
-# (PTPv2, leader mode) without ever touching the Terminal, a compiler, or
+# (PTPv2) without ever touching the Terminal, a compiler, or
 # the config file by hand. Privileged steps ask for your password once via
 # the standard macOS dialog.
 #
@@ -115,34 +115,23 @@ $RESTART_PTP" \
 		|| info "Deactivation was cancelled or failed."
 }
 
-# Present checkboxes for the two options and write the config file.
+# Toggle PTPv2 support and write the config file.
 edit_options() {
-	local cur_leader cur_ptpv2 preselect selection
-	cur_leader=$(conf_get leader)
-	cur_ptpv2=$(conf_get ptpv2)
+	local cur answer new_ptpv2
+	cur=$(conf_get ptpv2)
 
-	# Build the pre-selected list for AppleScript "choose from list".
-	local sel=()
-	[ "$cur_ptpv2" = "1" ] && sel+=("\"PTPv2 support\"")
-	[ "$cur_leader" = "1" ] && sel+=("\"Allow DVS to become leader\"")
-	preselect=$(IFS=,; echo "${sel[*]:-}")
-
-	selection=$(osa "set chosen to choose from list {\"PTPv2 support\", \"Allow DVS to become leader\"} \
+	answer=$(osa "set b to button returned of (display dialog \"PTPv2 support is currently $(yesno "$cur").\" \
 		with title \"DVS PTPv2 Unlock options\" \
-		with prompt \"Enable which features?\" \
-		default items {${preselect}} \
-		with multiple selections allowed and empty selection allowed
-		if chosen is false then return \"__CANCEL__\"
-		set AppleScript's text item delimiters to \"|\"
-		return chosen as text") || return
+		buttons {\"Cancel\", \"Disable\", \"Enable\"} \
+		default button \"$( [ "$cur" = "1" ] && echo Disable || echo Enable )\")
+		return b") || return
 
-	[ "$selection" = "__CANCEL__" ] && return
+	case "$answer" in
+		Enable)  new_ptpv2=1 ;;
+		Disable) new_ptpv2=0 ;;
+		*)       return ;;			# Cancel
+	esac
 
-	local new_ptpv2=0 new_leader=0
-	case "$selection" in *"PTPv2 support"*) new_ptpv2=1 ;; esac
-	case "$selection" in *"Allow DVS to become leader"*) new_leader=1 ;; esac
-
-	# Write the config as root (it lives under /Library).
 	# Write the config as root (it lives under /Library), restarting the service
 	# only if the wrapper is currently active.
 	local restart=""
@@ -150,15 +139,14 @@ edit_options() {
 	run_admin "set -e
 cat > \"$CONF\" <<'CONFEOF'
 # DVS PTPv2 Unlock configuration (written by dvs-ptpv2-unlock.command)
-leader = $new_leader
-ptpv2  = $new_ptpv2
+ptpv2 = $new_ptpv2
 CONFEOF
 chmod 644 \"$CONF\"
 $restart" || { info "Saving options was cancelled or failed."; return; }
 	if is_installed; then
-		info "Options saved (PTPv2 $(yesno "$new_ptpv2"), leader mode $(yesno "$new_leader")) and PTP service restarted."
+		info "PTPv2 support $(yesno "$new_ptpv2") and PTP service restarted."
 	else
-		info "Options saved (PTPv2 $(yesno "$new_ptpv2"), leader mode $(yesno "$new_leader")). They apply once you activate the wrapper."
+		info "PTPv2 support $(yesno "$new_ptpv2"). It applies once you activate the wrapper."
 	fi
 }
 
@@ -172,10 +160,9 @@ live_status() {
 		echo "PTP service not running"
 		return
 	fi
-	local p="disabled" l="disabled"
+	local p="disabled"
 	case " $proc " in *" -y2"*) p="enabled" ;; esac	# wrapper appends -y2=-2 for PTPv2
-	case " $proc " in *" -s "*) l="disabled" ;; *) l="enabled" ;; esac	# DVS passes -s for slave-only
-	echo "PTPv2 $p, leader mode $l"
+	echo "PTPv2 $p"
 }
 
 # Turn a 0/1 config value into a readable word.
@@ -183,7 +170,7 @@ yesno() { if [ "$1" = "1" ]; then echo "enabled"; else echo "disabled"; fi; }
 
 show_status() {
 	local state="installed" ; is_installed || state="not installed"
-	info "Wrapper: $state\n\nConfigured (desired):\n    PTPv2: $(yesno "$(conf_get ptpv2)")\n    Leader mode: $(yesno "$(conf_get leader)")\n\nLive (what DVS runs now):\n    $(live_status)\n\nConfig file: $CONF"
+	info "Wrapper: $state\n\nConfigured (desired):\n    PTPv2: $(yesno "$(conf_get ptpv2)")\n\nLive (what DVS runs now):\n    $(live_status)\n\nConfig file: $CONF"
 }
 
 # --- main menu loop ------------------------------------------------------
@@ -192,7 +179,7 @@ while true; do
 	state="not installed"
 	is_installed && state="active"
 	choice=$(osa "set c to choose from list \
-		{\"Activate wrapper\", \"Deactivate wrapper\", \"Edit options (PTPv2 / leader)\", \"Show status\", \"Quit\"} \
+		{\"Activate wrapper\", \"Deactivate wrapper\", \"Edit options (PTPv2)\", \"Show status\", \"Quit\"} \
 		with title \"DVS PTPv2 Unlock  (currently: $state)\" \
 		with prompt \"What would you like to do?\" \
 		default items {\"Show status\"}
