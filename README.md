@@ -37,10 +37,9 @@ The original `ptp` is kept as `ptp-original` and restored when you deactivate.
 1. Download **`dvs-ptpv2-unlock-macos.zip`** from the [Releases](../../releases)
    page and unzip it. It contains a **prebuilt universal binary** (Apple Silicon
    + Intel), so you need **no compiler and no Terminal**.
-2. Double-click **`DVS PTPv2 Unlock.app`** and pick from the menu:
-   - **Activate** / **Deactivate** the wrapper
-   - **Edit options** — enable or disable PTPv2 support
-   - **Show status** — see below
+2. Double-click **`DVS PTPv2 Unlock.app`**. One dialog tells you where you
+   stand and offers the single action that matters:
+   **Enable PTPv2** (or **Disable PTPv2**), plus **Show status**.
 3. Enter your password once when macOS asks. The change is applied and the
    **PTP service is restarted for you** — no manual DVS restart needed.
 
@@ -64,8 +63,8 @@ binary), it compiles for you, which needs the Command Line Tools
    page and unzip it. It contains a **prebuilt `dvs-ptpv2-unlock.exe`**, so you
    need no compiler.
 2. Double-click **`DVS PTPv2 Unlock.cmd`**. Windows asks for administrator
-   rights (UAC) once, then the same menu opens: **Activate** / **Deactivate**,
-   **Edit options**, **Show status**.
+   rights (UAC) once, then the same single switch appears:
+   **Enable PTPv2** (or **Disable PTPv2**), plus **Show status**.
 3. Each change is applied and the **Dante Virtual Soundcard service is stopped
    and restarted for you** — required on Windows, because a running `.exe` is
    locked and cannot be replaced while in use.
@@ -79,64 +78,60 @@ detected automatically.
 
 ## What it looks like
 
-On **macOS** the app shows native dialogs — a menu titled
-*DVS PTPv2 Unlock (currently: …)* asking "What would you like to do?", with:
+On **macOS** it is a single native dialog:
 
 ```
-Activate wrapper
-Deactivate wrapper
-Edit options (PTPv2)
-Show status
-Quit
+PTPv2 is currently disabled.
+
+[ Quit ]   [ Show status ]   [ Enable PTPv2 ]
 ```
 
-**Edit options** shows the current setting ("PTPv2 support is currently
-disabled.") with **Enable** / **Disable** / **Cancel** buttons.
-
-On **Windows** the same control panel runs in a console window:
+Once enabled, the same button reads **Disable PTPv2**. On **Windows** the same
+switch runs in a console window:
 
 ```
-===== DVS PTPv2 Unlock  (currently: not installed) =====
-  1) Activate wrapper
-  2) Deactivate wrapper
-  3) Edit options (PTPv2)
-  4) Show status
-  5) Quit
+===== DVS PTPv2 Unlock =====
+PTPv2 is currently disabled.
+
+  1) Enable PTPv2
+  2) Show status
+  3) Quit
 Choose:
 ```
 
 
 ## Show status
 
-**Show status** reports two things, so you can tell intent from reality:
-
-- **Configured (desired)** — what `dvs-ptpv2-unlock.conf` asks for.
-- **Live (what DVS runs now)** — read from the **running** PTP process, so it
-  answers "is PTPv2 actually enabled right now?" even before anything is
-  installed.
+**Show status** gives the one-line answer first, then what it is based on —
+including the **running** PTP process, so it reports what DVS is actually doing
+right now rather than only what was asked for:
 
 ```
-Wrapper : installed
-Configured (desired):      PTPv2: enabled
-Live (what DVS runs now):  PTPv2 enabled
+PTPv2: enabled
+Details:
+    Wrapper installed: yes
+    Config setting   : enabled
+    Running service  : PTPv2 enabled
 ```
 
-If those two disagree, DVS hasn't picked up the change yet — or a DVS update
-reverted the wrapper (see the note below).
+PTPv2 is reported as enabled only when the wrapper is in place **and** the
+config asks for it. If *Running service* disagrees with the rest, DVS hasn't
+picked up the change yet — or a DVS update reverted the wrapper (see below).
 
 
-## Changing options later
+## Changing it later
 
-Use **Edit options** in the control panel (it applies the change and restarts the
-PTP service). Or edit `dvs-ptpv2-unlock.conf` in the DVS folder by hand and
-restart DVS yourself. The value accepts `1/0`, `true/false`, `yes/no`, `on/off`:
+Just open the control panel again and use the switch; it applies the change and
+restarts the PTP service. Or edit `dvs-ptpv2-unlock.conf` in the DVS folder by
+hand and restart DVS yourself. The value accepts `1/0`, `true/false`, `yes/no`,
+`on/off`:
 
 ```
 ptpv2 = 1
 ```
 
 > **After a DVS update:** the updater replaces `ptp` with Audinate's original and
-> silently reverts the wrapper. Open the control panel and activate again.
+> silently reverts the wrapper. Open the control panel and enable PTPv2 again.
 > **Show status** tells you if this has happened.
 
 

@@ -116,17 +116,33 @@ Assert-That (Get-ConfValue 'ptpv2')  "reads 'ON'"
 Set-Content $Conf @('ptpv2 = false') -Encoding ASCII
 Assert-That (-not (Get-ConfValue 'ptpv2'))  "reads 'false'"
 
-Invoke-Activate
-Assert-That (Test-Installed)                                  "activate creates the ptp-original backup"
+# One switch: both halves of "enabled" must be false in every partial state,
+# otherwise the GUI would claim PTPv2 is on while nothing actually happens.
+Set-Content $Conf @('ptpv2 = 1') -Encoding ASCII
+Assert-That (-not (Test-Enabled)) "config on but wrapper missing counts as DISABLED"
+
+Invoke-Enable
+Assert-That (Test-Installed)                                  "enable creates the ptp-original backup"
 Assert-That ((Get-Content $Orig -Raw) -match 'ORIGINAL-PTP')  "backup contains the genuine original"
 Assert-That ((Get-Item $Ptp).Length -eq (Get-Item $exe).Length) "ptp.exe was replaced by the wrapper"
+Assert-That (Get-ConfValue 'ptpv2')                           "enable also switches the config on"
+Assert-That (Test-Enabled)                                    "enable reports PTPv2 as enabled"
 
-Invoke-Activate   # running it twice must not destroy the original
-Assert-That ((Get-Content $Orig -Raw) -match 'ORIGINAL-PTP')  "second activate does NOT clobber the original"
+Set-Conf -ptpv2 $false
+Assert-That (-not (Test-Enabled)) "wrapper installed but config off counts as DISABLED"
 
-Invoke-Deactivate
-Assert-That (-not (Test-Installed))                           "deactivate removes the backup"
-Assert-That ((Get-Content $Ptp -Raw) -match 'ORIGINAL-PTP')   "deactivate restores the genuine original"
+Invoke-Enable   # running it twice must not destroy the original
+Assert-That ((Get-Content $Orig -Raw) -match 'ORIGINAL-PTP')  "second enable does NOT clobber the original"
+Assert-That (Test-Enabled)                                    "second enable repairs the config too"
+
+Invoke-Disable
+Assert-That (-not (Test-Installed))                           "disable removes the backup"
+Assert-That ((Get-Content $Ptp -Raw) -match 'ORIGINAL-PTP')   "disable restores the genuine original"
+Assert-That (-not (Get-ConfValue 'ptpv2'))                    "disable also switches the config off"
+Assert-That (-not (Test-Enabled))                             "disable reports PTPv2 as disabled"
+
+Invoke-Disable   # disabling twice is harmless
+Assert-That ((Get-Content $Ptp -Raw) -match 'ORIGINAL-PTP')   "second disable leaves the original in place"
 
 # Live status must read the CHILD process: on Windows the wrapper stays alive as
 # ptp.exe with DVS's ORIGINAL arguments while the real service runs as

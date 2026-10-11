@@ -1,9 +1,9 @@
 # DVS PTPv2 Unlock -- Windows control panel
 #
-# Double-click "DVS PTPv2 Unlock.cmd" (which launches this script). It opens a
-# small menu to activate/deactivate the PTP wrapper and toggle its options
-# (PTPv2). It elevates via UAC once, applies the change, and
-# restarts the Dante Virtual Soundcard so it takes effect.
+# Double-click "DVS PTPv2 Unlock.cmd" (which launches this script). It offers one
+# switch -- turn PTPv2 support on or off -- plus a status view. It elevates via
+# UAC once, applies the change, and restarts the Dante Virtual Soundcard so it
+# takes effect.
 #
 # Parameters exist for testing: -DvsDir points at a different install folder and
 # -LoadOnly dot-sources the functions without elevating or showing the menu.
@@ -37,6 +37,12 @@ function Use-DvsDir([string]$dir) {
 # --- config -----------------------------------------------------------------
 
 function Test-Installed { Test-Path $Orig }
+
+# PTPv2 counts as enabled only when BOTH hold: the wrapper is in place AND the
+# config asks for it. These used to be two separate menu entries, which let
+# people install the wrapper and still get nothing, because the shipped config
+# defaults to off. The single switch below always sets both together.
+function Test-Enabled { (Test-Installed) -and (Get-ConfValue 'ptpv2') }
 
 function Get-ConfValue([string]$key) {
     if (-not (Test-Path $Conf)) { return $false }
@@ -111,52 +117,40 @@ function Copy-FileWithRetry($src, $dst) {
 
 # --- actions ----------------------------------------------------------------
 
-function Invoke-Activate {
+function Invoke-Enable {
     if (-not (Test-Path $DvsDir)) { throw "Dante Virtual Soundcard not found at '$DvsDir'." }
     if (-not (Test-Path $Ptp) -and -not (Test-Installed)) { throw "No ptp.exe found in '$DvsDir'." }
     $bin = Get-Binary
     $svc = Suspend-Dvs
     try {
-        # Back up the real ptp only if no backup exists, so a second activate can
+        # Back up the real ptp only if no backup exists, so enabling twice can
         # never overwrite the original with the wrapper.
         if (-not (Test-Installed)) { Copy-Item $Ptp $Orig }
         Copy-FileWithRetry $bin $Ptp
-        if (-not (Test-Path $Conf)) {
-            Copy-Item (Join-Path $PSScriptRoot 'dvs-ptpv2-unlock.conf') $Conf
-        }
+        Set-Conf -ptpv2 $true
     } finally {
         Resume-Dvs $svc
     }
-    Write-Host "`nActivated and DVS restarted." -ForegroundColor Green
+    Write-Host "`nPTPv2 is now enabled. DVS was restarted." -ForegroundColor Green
 }
 
-function Invoke-Deactivate {
-    if (-not (Test-Installed)) { Write-Host "`nNot installed -- nothing to do." -ForegroundColor Yellow; return }
+function Invoke-Disable {
+    if (-not (Test-Installed)) {
+        Write-Host "`nPTPv2 is already disabled -- DVS's original ptp is in place." -ForegroundColor Yellow
+        return
+    }
     $svc = Suspend-Dvs
     try {
         # Copy back first and only drop the backup once that succeeded, so a
         # failure here can never leave the system without a working ptp.exe.
         Copy-FileWithRetry $Orig $Ptp
         Remove-Item $Orig -Force -ErrorAction SilentlyContinue
+        # Keep the config in step, so nothing is left claiming PTPv2 is wanted.
+        if (Test-Path $Conf) { Set-Conf -ptpv2 $false }
     } finally {
         Resume-Dvs $svc
     }
-    Write-Host "`nOriginal ptp restored and DVS restarted." -ForegroundColor Green
-}
-
-function Edit-Options {
-    $curPtpv2 = Get-ConfValue 'ptpv2'
-    Write-Host ""
-    $a = Read-Host "Enable PTPv2 support? (y/n) [$(if($curPtpv2){'y'}else{'n'})]"
-    $ptpv2 = if ($a -eq '') { $curPtpv2 } else { $a -match '^(y|yes|1|on|true)$' }
-    Set-Conf -ptpv2 $ptpv2
-    if (Test-Installed) {
-        $svc = Suspend-Dvs
-        Resume-Dvs $svc
-        Write-Host "`nSaved (PTPv2 $(YesNo $ptpv2)) and DVS restarted." -ForegroundColor Green
-    } else {
-        Write-Host "`nSaved (PTPv2 $(YesNo $ptpv2)). It applies once you activate the wrapper." -ForegroundColor Green
-    }
+    Write-Host "`nPTPv2 is now disabled. DVS's original ptp was restored and DVS restarted." -ForegroundColor Green
 }
 
 # Report the EFFECTIVE state from the running process, independent of the config.
@@ -178,12 +172,13 @@ function Get-LiveStatus {
 function YesNo([bool]$b) { if ($b) { 'enabled' } else { 'disabled' } }
 
 function Show-Status {
-    $state = if (Test-Installed) { 'installed' } else { 'not installed' }
     Write-Host ""
-    Write-Host "Wrapper : $state"
-    Write-Host "Configured (desired):   PTPv2: $(YesNo (Get-ConfValue 'ptpv2'))"
-    Write-Host "Live (what DVS runs now):  $(Get-LiveStatus)"
-    Write-Host "config file: $Conf"
+    Write-Host "PTPv2: $(YesNo (Test-Enabled))" -ForegroundColor Cyan
+    Write-Host "Details:"
+    Write-Host "    Wrapper installed: $(if (Test-Installed) {'yes'} else {'no'})"
+    Write-Host "    Config setting   : $(YesNo (Get-ConfValue 'ptpv2'))"
+    Write-Host "    Running service  : $(Get-LiveStatus)"
+    Write-Host "    Config file      : $Conf"
 }
 
 # --- startup ----------------------------------------------------------------
@@ -204,21 +199,19 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltinRole]::Administra
 
 $quit = $false
 while (-not $quit) {
-    $state = if (Test-Installed) { 'active' } else { 'not installed' }
+    $enabled = Test-Enabled
     Write-Host ""
-    Write-Host "===== DVS PTPv2 Unlock  (currently: $state) =====" -ForegroundColor Cyan
-    Write-Host "  1) Activate wrapper"
-    Write-Host "  2) Deactivate wrapper"
-    Write-Host "  3) Edit options (PTPv2)"
-    Write-Host "  4) Show status"
-    Write-Host "  5) Quit"
+    Write-Host "===== DVS PTPv2 Unlock =====" -ForegroundColor Cyan
+    Write-Host "PTPv2 is currently $(YesNo $enabled)."
+    Write-Host ""
+    Write-Host "  1) $(if ($enabled) {'Disable PTPv2'} else {'Enable PTPv2'})"
+    Write-Host "  2) Show status"
+    Write-Host "  3) Quit"
     try {
         switch (Read-Host "Choose") {
-            '1' { Invoke-Activate }
-            '2' { Invoke-Deactivate }
-            '3' { Edit-Options }
-            '4' { Show-Status }
-            '5' { $quit = $true }
+            '1' { if ($enabled) { Invoke-Disable } else { Invoke-Enable } }
+            '2' { Show-Status }
+            '3' { $quit = $true }
             default { }
         }
     } catch {

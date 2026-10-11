@@ -2,11 +2,10 @@
 #
 # DVS PTPv2 Unlock -- one double-click control panel (macOS)
 #
-# Double-click this file in Finder. It opens a small menu where you can
-# activate/deactivate the PTP wrapper and toggle its options
-# (PTPv2) without ever touching the Terminal, a compiler, or
-# the config file by hand. Privileged steps ask for your password once via
-# the standard macOS dialog.
+# Double-click this file in Finder. It opens a single dialog that switches PTPv2
+# support on or off and shows the current status -- no Terminal, no compiler and
+# no editing the config file by hand. The privileged step asks for your password
+# once via the standard macOS dialog.
 #
 set -euo pipefail
 
@@ -94,7 +93,13 @@ run_admin() {
 
 # --- privileged actions (single password prompt each) --------------------
 
-do_activate() {
+# PTPv2 counts as enabled only when BOTH hold: the wrapper is in place AND the
+# config asks for it. These used to be two separate menu entries, which let
+# people install the wrapper and still get nothing, because the shipped config
+# defaults to off. The single switch below always sets both together.
+is_enabled() { is_installed && [ "$(conf_get ptpv2)" = "1" ]; }
+
+do_enable() {
 	ensure_built
 	# All privileged steps run in one elevated shell = one password prompt.
 	run_admin "set -e
@@ -103,58 +108,34 @@ if [ ! -f \"$DVSDIR/ptp-original\" ]; then cp \"$DVSDIR/ptp\" \"$DVSDIR/ptp-orig
 cp dvs-ptpv2-unlock \"$DVSDIR/ptp\"
 chown root:admin \"$DVSDIR/ptp\"
 chmod 755 \"$DVSDIR/ptp\"
-if [ ! -f \"$CONF\" ]; then cp dvs-ptpv2-unlock.conf \"$CONF\"; chmod 644 \"$CONF\"; fi
+cat > \"$CONF\" <<'CONFEOF'
+# DVS PTPv2 Unlock configuration (written by dvs-ptpv2-unlock.command)
+ptpv2 = 1
+CONFEOF
+chmod 644 \"$CONF\"
 $RESTART_PTP" \
-		&& info "PTP wrapper activated and PTP service restarted." \
-		|| info "Activation was cancelled or failed."
+		&& info "PTPv2 is now enabled.\n\nThe PTP service was restarted." \
+		|| info "Enabling PTPv2 was cancelled or failed."
 }
 
-do_deactivate() {
+do_disable() {
 	if ! is_installed; then
-		info "Wrapper is not installed -- nothing to deactivate."
-		return
+		info "PTPv2 is already disabled -- DVS's original ptp is in place."
+		return 0
 	fi
+	# Restore the original binary and set the config to match, so no state is
+	# left behind claiming PTPv2 is wanted.
 	run_admin "set -e
 mv \"$DVSDIR/ptp-original\" \"$DVSDIR/ptp\"
 chown root:admin \"$DVSDIR/ptp\"
-$RESTART_PTP" \
-		&& info "Original ptp restored and PTP service restarted." \
-		|| info "Deactivation was cancelled or failed."
-}
-
-# Toggle PTPv2 support and write the config file.
-edit_options() {
-	local cur answer new_ptpv2
-	cur=$(conf_get ptpv2)
-
-	answer=$(osa "set b to button returned of (display dialog \"PTPv2 support is currently $(yesno "$cur").\" \
-		with title \"DVS PTPv2 Unlock options\" \
-		buttons {\"Cancel\", \"Disable\", \"Enable\"} \
-		default button \"$( [ "$cur" = "1" ] && echo Disable || echo Enable )\")
-		return b") || return 0		# Cancel/Escape -> AppleScript -128, not an error
-
-	case "$answer" in
-		Enable)  new_ptpv2=1 ;;
-		Disable) new_ptpv2=0 ;;
-		*)       return 0 ;;			# Cancel
-	esac
-
-	# Write the config as root (it lives under /Library), restarting the service
-	# only if the wrapper is currently active.
-	local restart=""
-	is_installed && restart="$RESTART_PTP"
-	run_admin "set -e
 cat > \"$CONF\" <<'CONFEOF'
 # DVS PTPv2 Unlock configuration (written by dvs-ptpv2-unlock.command)
-ptpv2 = $new_ptpv2
+ptpv2 = 0
 CONFEOF
 chmod 644 \"$CONF\"
-$restart" || { info "Saving options was cancelled or failed."; return; }
-	if is_installed; then
-		info "PTPv2 support $(yesno "$new_ptpv2") and PTP service restarted."
-	else
-		info "PTPv2 support $(yesno "$new_ptpv2"). It applies once you activate the wrapper."
-	fi
+$RESTART_PTP" \
+		&& info "PTPv2 is now disabled.\n\nDVS's original ptp was restored and the PTP service restarted." \
+		|| info "Disabling PTPv2 was cancelled or failed."
 }
 
 # Inspect the currently running PTP process to report the EFFECTIVE state --
@@ -178,28 +159,34 @@ live_status() {
 yesno() { if [ "$1" = "1" ]; then echo "enabled"; else echo "disabled"; fi; }
 
 show_status() {
-	local state="installed" ; is_installed || state="not installed"
-	info "Wrapper: $state\n\nConfigured (desired):\n    PTPv2: $(yesno "$(conf_get ptpv2)")\n\nLive (what DVS runs now):\n    $(live_status)\n\nConfig file: $CONF"
+	local overall="disabled" inst="no"
+	is_enabled && overall="enabled"
+	is_installed && inst="yes"
+	info "PTPv2: $overall\n\nDetails:\n    Wrapper installed: $inst\n    Config setting: $(yesno "$(conf_get ptpv2)")\n    Running service: $(live_status)\n\nConfig file: $CONF"
 }
 
-# --- main menu loop ------------------------------------------------------
+# --- main dialog ---------------------------------------------------------
 
 while true; do
-	state="not installed"
-	is_installed && state="active"
-	choice=$(osa "set c to choose from list \
-		{\"Activate wrapper\", \"Deactivate wrapper\", \"Edit options (PTPv2)\", \"Show status\", \"Quit\"} \
-		with title \"DVS PTPv2 Unlock  (currently: $state)\" \
-		with prompt \"What would you like to do?\" \
-		default items {\"Show status\"}
-		if c is false then return \"Quit\"
-		return item 1 of c") || exit 0
+	if is_enabled; then
+		state="enabled" ; action="Disable PTPv2"
+	else
+		state="disabled" ; action="Enable PTPv2"
+	fi
 
-	case "$choice" in
-		"Activate wrapper")   do_activate ;;
-		"Deactivate wrapper") do_deactivate ;;
-		"Edit options"*)      edit_options ;;
-		"Show status")        show_status ;;
-		"Quit"|"")            exit 0 ;;
+	# "Quit" is also the cancel button, so Escape closes the panel. Clicking it
+	# makes AppleScript return -128, which "|| exit 0" treats as a clean exit.
+	button=$(osa "set b to button returned of (display dialog \"PTPv2 is currently $state.\" \
+		with title \"DVS PTPv2 Unlock\" \
+		buttons {\"Quit\", \"Show status\", \"$action\"} \
+		default button \"$action\" \
+		cancel button \"Quit\")
+		return b") || exit 0
+
+	case "$button" in
+		"Enable PTPv2")  do_enable ;;
+		"Disable PTPv2") do_disable ;;
+		"Show status")   show_status ;;
+		*)               exit 0 ;;
 	esac
 done

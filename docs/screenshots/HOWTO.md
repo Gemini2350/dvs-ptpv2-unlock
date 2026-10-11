@@ -5,11 +5,10 @@ expects them, so no README edit is needed once the files exist.
 
 | Filename | What to capture |
 |---|---|
-| `macos-menu.png` | The main menu dialog of `DVS PTPv2 Unlock.app` |
-| `macos-options.png` | The **Edit options** dialog with its two checkboxes |
+| `macos-menu.png` | The dialog of `DVS PTPv2 Unlock.app` (Quit / Show status / Enable PTPv2) |
 | `macos-status.png` | The **Show status** dialog |
-| `windows-menu.png` | The console window with the numbered menu |
-| `windows-status.png` | The console after choosing **4) Show status** |
+| `windows-menu.png` | The console window with the three-item switch |
+| `windows-status.png` | The console after choosing **2) Show status** |
 
 ## Capturing
 
