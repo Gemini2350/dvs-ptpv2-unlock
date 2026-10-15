@@ -1,27 +1,20 @@
-# How to add screenshots
+# Screenshots
 
-Drop PNGs into this folder using exactly these names — the README already
-expects them, so no README edit is needed once the files exist.
+| File | Shows | Status |
+|---|---|---|
+| `macos-menu.png` | The control panel dialog (Quit / Show status / Enable PTPv2) | done |
+| `macos-status.png` | The **Show status** dialog | done |
+| `windows-menu.png` | The console window with the three-item switch | missing |
+| `windows-status.png` | The console after choosing **2) Show status** | missing |
 
-| Filename | What to capture |
-|---|---|
-| `macos-menu.png` | The dialog of `DVS PTPv2 Unlock.app` (Quit / Show status / Enable PTPv2) |
-| `macos-status.png` | The **Show status** dialog |
-| `windows-menu.png` | The console window with the three-item switch |
-| `windows-status.png` | The console after choosing **2) Show status** |
+The README references these paths directly, so adding a missing one is just a
+matter of dropping the PNG in with the right name.
 
-## Capturing
+**Capturing on Windows** — click the console window, press
+<kbd>Alt</kbd><kbd>PrtScn</kbd> to copy the active window, then paste it into
+Paint and save as PNG. Snipping Tool in *Window* mode works too.
 
-**macOS** — press <kbd>⌘</kbd><kbd>⇧</kbd><kbd>4</kbd>, then <kbd>Space</kbd>,
-then click the dialog to capture just that window (with its shadow). Or use
-<kbd>⌘</kbd><kbd>⇧</kbd><kbd>5</kbd> → *Capture Selected Window*.
+**Capturing on macOS** — <kbd>⌘</kbd><kbd>⇧</kbd><kbd>4</kbd>, then
+<kbd>Space</kbd>, then click the dialog to capture just that window.
 
-**Windows** — click the console window, then press
-<kbd>Alt</kbd><kbd>PrtScn</kbd> to copy the active window, and paste it into
-Paint (or Snipping Tool → *Window* mode) to save as PNG.
-
-## Please note
-
-- Take the shots at default window size; avoid full-desktop captures.
-- Nothing in these dialogs is sensitive, but check the window title bar and any
-  visible paths before publishing.
+Keep captures to the window itself, not the whole desktop.
